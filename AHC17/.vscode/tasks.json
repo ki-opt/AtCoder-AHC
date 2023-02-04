@@ -1,0 +1,24 @@
+{
+   // See https://go.microsoft.com/fwlink/?LinkId=733558
+   // for the documentation about the tasks.json format
+   "version": "2.0.0",
+   "tasks": [
+       {
+           "label": "g++ compile",
+           "type": "shell",
+           "command": "g++",
+           "args": [
+               "-g",             // デバッグオプション
+               "-O0",            // 最適化なし
+               "-std=c++14",     // コンパイルの種類
+               "src/src.cpp",    // ソース名
+               "-o",
+               "debug/out"       // 出力ファイル名
+           ],
+           "group": {
+               "kind": "build",
+               "isDefault": true
+           }
+       }
+   ]
+}

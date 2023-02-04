@@ -1,9 +1,9 @@
-#incldue <stdio.h>
+#include <iostream>
+#include <vector>
 
 using std::vector; using std::cout; using std::cin;
 
-void main() {
+int main() {
    cout << 1;
    vector<int> aaa;
-   
 }
