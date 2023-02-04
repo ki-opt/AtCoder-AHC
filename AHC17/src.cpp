@@ -1,5 +1,9 @@
 #incldue <stdio.h>
 
+using std::vector; using std::cout; using std::cin;
+
 void main() {
-   vector<
+	cout << 1;
+	vector<int> a;
+	
 }
