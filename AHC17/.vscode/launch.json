@@ -11,7 +11,7 @@
          "program": "${workspaceFolder}/debug/out",
          "args": [],
          "cwd": "${workspaceFolder}",
-         "intelliSenseMode":"clang-x64",
+         //"intelliSenseMode":"clang-x64",
       }
    ]
 }
