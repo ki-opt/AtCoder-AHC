@@ -1,6 +1,0 @@
-git add AHC...
-git commit -m "comment"
-git remote add AtCoder https://github.com/ki-opt/AtCoder-AHC.git # if first
-git push AtCoder master
-
-通常はadd->commit->push
