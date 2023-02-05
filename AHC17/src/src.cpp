@@ -2,11 +2,12 @@
 #include <vector>
 #include <string>
 #include <random>
+#include <fstream>
 
 using std::vector; using std::cout; using std::cin;
 using std::string; using std::mt19937; using std::uniform_int_distribution;
 
-#define CONTEST false
+#define CONTEST true
 
 class Instance {
 // メンバ関数
@@ -18,22 +19,27 @@ public:
 // コンストラクタ
 public:
    Instance(string filename) { 
+      int ret;
       FILE *fpFile;
       fpFile = fopen(filename.c_str(),"r");
       if (fpFile == NULL) { cout << "cannot read instance"; getchar(); }
-      fscanf(fpFile,"%d %d %d %d", &N, &M, &D, &K);
+      ret = fscanf(fpFile,"%d %d %d %d", &N, &M, &D, &K);
       this->edge_weight.assign(M, vector<int>(3));
       this->node_coord.assign(N, vector<int>(2));
-      for (int i = 0; i < M; i++) { for (int j = 0; j < 3; j++) fscanf(fpFile, "%d", &edge_weight[i][j]); }
-      for (int i = 0; i < N; i++) { for (int j = 0; j < 2; j++) fscanf(fpFile, "%d", &node_coord[i][j]); }
+      for (int i = 0; i < M; i++) { for (int j = 0; j < 3; j++) ret = fscanf(fpFile, "%d", &this->edge_weight[i][j]); }
+      for (int i = 0; i < N; i++) { for (int j = 0; j < 2; j++) ret = fscanf(fpFile, "%d", &this->node_coord[i][j]); }
       fclose(fpFile);
    }
    Instance() {
-      cin >> this->N; cin >> this->M; cin >> this->D; cin >> this->K;
+#if !CONTEST
+      std::ifstream in("inst/inst_0.txt");
+      cin.rdbuf(in.rdbuf());
+#endif
+      cin >> this->N >> this->M >> this->D >> this->K;
       this->edge_weight.assign(M, vector<int>(3));
       this->node_coord.assign(N, vector<int>(2));
-      for (int i = 0; i < M; i++) { for (int j = 0; j < 3; j++) cin >> edge_weight[i][j]; }
-      for (int i = 0; i < N; i++) { for (int j = 0; j < 2; j++) cin >> node_coord[i][j]; }
+      for (int i = 0; i < M; i++) { for (int j = 0; j < 3; j++) cin >> this->edge_weight[i][j]; }
+      for (int i = 0; i < N; i++) { for (int j = 0; j < 2; j++) cin >> this->node_coord[i][j]; }
    };
 };
 
@@ -62,7 +68,7 @@ public:
    void create_random_init_sol(const Instance &inst, RandomNumber &rnd) {
       for (int i = 0; i < inst.M; i++) {
          int random_number = rnd.random_distribution(1,inst.D);
-         while (kozi_count[random_number - 1] > inst.K) random_number = rnd.random_distribution(1,inst.D);
+         while (kozi_count[random_number - 1] >= inst.K) random_number = rnd.random_distribution(1,inst.D);
          sol[i] = random_number;
          kozi_count[random_number - 1]++;
       }
@@ -73,7 +79,7 @@ public:
    }
    void output_txtfile(const Instance &inst) {
       FILE *fpWrite;
-      string fnameWrite = "result.txt";
+      string fnameWrite = "debug/result.txt";
       fpWrite = fopen(fnameWrite.c_str(),"w");
       if (fpWrite == NULL) { cout << "cannot output result"; getchar(); }
       for (int i = 0; i < inst.M - 1; i++) fprintf(fpWrite, "%d ", sol[i]);
@@ -83,11 +89,7 @@ public:
 };
 
 int main() {
-#if CONTEST
    Instance inst;                            // for AHC
-#else
-   Instance inst("inst/inst_0.txt");         // for test
-#endif
    Solution solution(inst);
    RandomNumber rnd(0);
 
