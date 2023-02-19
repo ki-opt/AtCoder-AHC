@@ -1,6 +1,9 @@
 #include <cassert>
 #include <iostream>
 #include <vector>
+#include <fstream>
+
+#define CONTEST 0
 
 using namespace std;
 
@@ -18,9 +21,12 @@ public:
 	int N;
 	int C;
 	vector<vector<int>> is_broken;
+   vector<Pos> broken_cell;
+   int broken_cell_counter;
 	int total_cost;
 
-	Field(int N, int C) : N(N), C(C), is_broken(N, vector<int>(N, 0)), total_cost(0) {}
+	Field(int N, int C) : N(N), C(C), is_broken(N, vector<int>(N, 0)),
+      broken_cell(N, Pos{-1,-1}), broken_cell_counter(0), total_cost(0) {}
 
 	Response query(int y, int x, int power) {
 		total_cost += power + C;
@@ -32,10 +38,14 @@ public:
 			return Response::not_broken;
 		case 1:
 			is_broken[y][x] = 1;
+         broken_cell[broken_cell_counter] = Pos{y,x};
+         broken_cell_counter++;
 			return Response::broken;
 		case 2:
 			is_broken[y][x] = 1;
-			return Response::finish;
+         broken_cell[broken_cell_counter] = Pos{y,x};
+         broken_cell_counter++;
+         return Response::finish;
 		default:
 			return Response::invalid;
 		}
@@ -45,20 +55,54 @@ public:
 class Solver {
 public:
 	int N;
+   int K;
 	int C;
 	vector<Pos> source_pos;
 	vector<Pos> house_pos;
+   vector<int> house_reach_src;
 	Field field;
 
-	Solver(int N, const vector<Pos>& source_pos, const vector<Pos>& house_pos, int C) : 
-		N(N), source_pos(source_pos), house_pos(house_pos), C(C), field(N, C) {
+	Solver(int N, const vector<Pos>& source_pos, const vector<Pos>& house_pos, int K, int C) : 
+		N(N), source_pos(source_pos), house_pos(house_pos), K(K), C(C), house_reach_src(K, 0), field(N, C) {
 	}
 
 	void solve() {
+      // (初期化)水源を掘削
+      for (Pos source : source_pos) {
+         move(source, source);
+      }
+
+      // 最も近い掘削の完了したセルを探索
+      for (int reach_count = 0; reach_count < K; reach_count++) {
+         int shortest_source_dist = INT_MAX;
+         int house_index;
+         Pos shortest_broken_pos, shortest_house_pos;
+         for (int i = 0; i < K; i++) {
+            if (!house_reach_src[i]) {
+               Pos house = house_pos[i];
+               for (int j = 0; j < field.broken_cell_counter; j++) {
+                  int dist = abs(field.broken_cell[j].y - house.y) + abs(field.broken_cell[j].x - house.x);
+                  if (dist < shortest_source_dist) {
+                     shortest_source_dist = dist;
+                     shortest_broken_pos = Pos{field.broken_cell[j].y, field.broken_cell[j].x}; // ディープコピーしたい
+                     shortest_house_pos = Pos{house.y, house.x};                                // ディープコピーしたい
+                     house_index = i;
+                  }
+               }
+            }
+         }
+         // 移動
+         move(shortest_house_pos, shortest_broken_pos);
+         house_reach_src[house_index] = 1;
+      }//*/
+      
+      /*
+      // sample_code
 		// from each house, go straight to the first source
 		for (Pos house : house_pos) {
-			move(house, source_pos[0]);   // 水源の選択
+			move(house, source_pos[0]);   // startからgoalへの移動(start, goal)
 		}
+      */
 
 		// should receive Response::finish and exit before entering here
 		assert(false);
@@ -108,8 +152,17 @@ public:
 };
 
 int main() {
+   
+#if !CONTEST
+      ifstream in("debug/tester/inst/0000.txt");
+      if (!in) { cout << "error"; getchar(); }
+      cin.rdbuf(in.rdbuf());
+#endif
+
 	int N, W, K, C;
 	cin >> N >> W >> K >> C;
+#if ここに強度のやつ削除するの書く
+
 	vector<Pos> source_pos(W);
 	vector<Pos> house_pos(K);
 	for (int i = 0; i < W; i++) {
@@ -119,6 +172,6 @@ int main() {
 		cin >> house_pos[i].y >> house_pos[i].x;
 	}
 
-	Solver solver(N, source_pos, house_pos, C);
+	Solver solver(N, source_pos, house_pos, K, C);
 	solver.solve();
 }
