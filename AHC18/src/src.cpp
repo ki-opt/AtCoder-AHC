@@ -2,8 +2,9 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <climits>
 
-#define CONTEST 0
+#define CONTEST 1
 
 using namespace std;
 
@@ -26,7 +27,7 @@ public:
 	int total_cost;
 
 	Field(int N, int C) : N(N), C(C), is_broken(N, vector<int>(N, 0)),
-      broken_cell(N, Pos{-1,-1}), broken_cell_counter(0), total_cost(0) {}
+      broken_cell(N*N, Pos{-1,-1}), broken_cell_counter(0), total_cost(0) {}
 
 	Response query(int y, int x, int power) {
 		total_cost += power + C;
@@ -59,11 +60,11 @@ public:
 	int C;
 	vector<Pos> source_pos;
 	vector<Pos> house_pos;
-   vector<int> house_reach_src;
+   vector<int> house_done;
 	Field field;
 
 	Solver(int N, const vector<Pos>& source_pos, const vector<Pos>& house_pos, int K, int C) : 
-		N(N), source_pos(source_pos), house_pos(house_pos), K(K), C(C), house_reach_src(K, 0), field(N, C) {
+		N(N), source_pos(source_pos), house_pos(house_pos), K(K), C(C), house_done(K, 0), field(N, C) {
 	}
 
 	void solve() {
@@ -78,22 +79,21 @@ public:
          int house_index;
          Pos shortest_broken_pos, shortest_house_pos;
          for (int i = 0; i < K; i++) {
-            if (!house_reach_src[i]) {
-               Pos house = house_pos[i];
-               for (int j = 0; j < field.broken_cell_counter; j++) {
-                  int dist = abs(field.broken_cell[j].y - house.y) + abs(field.broken_cell[j].x - house.x);
-                  if (dist < shortest_source_dist) {
-                     shortest_source_dist = dist;
-                     shortest_broken_pos = Pos{field.broken_cell[j].y, field.broken_cell[j].x}; // ディープコピーしたい
-                     shortest_house_pos = Pos{house.y, house.x};                                // ディープコピーしたい
-                     house_index = i;
-                  }
+            if (house_done[i]) continue;
+            Pos house = {house_pos[i].y, house_pos[i].x};
+            for (int j = 0; j < field.broken_cell_counter; j++) {
+               int dist = abs(field.broken_cell[j].y - house.y) + abs(field.broken_cell[j].x - house.x);
+               if (dist < shortest_source_dist) {
+                  shortest_source_dist = dist;
+                  shortest_broken_pos = Pos{field.broken_cell[j].y, field.broken_cell[j].x}; // ディープコピーしたい
+                  shortest_house_pos = Pos{house.y, house.x};                                // ディープコピーしたい
+                  house_index = i;
                }
             }
          }
          // 移動
          move(shortest_house_pos, shortest_broken_pos);
-         house_reach_src[house_index] = 1;
+         house_done[house_index] = 1;
       }//*/
       
       /*
@@ -154,14 +154,20 @@ public:
 int main() {
    
 #if !CONTEST
-      ifstream in("debug/tester/inst/0000.txt");
-      if (!in) { cout << "error"; getchar(); }
-      cin.rdbuf(in.rdbuf());
+   ifstream in("debug/tester/inst/0005.txt");
+   if (!in) { cout << "error"; getchar(); }
+   cin.rdbuf(in.rdbuf());
 #endif
 
 	int N, W, K, C;
 	cin >> N >> W >> K >> C;
-#if ここに強度のやつ削除するの書く
+
+#if !CONTEST
+   string line;
+   for (int i = 0; i < N + 1; i++) {   // 最初の行の改行コードのため+1
+      getline(cin, line);
+   }
+#endif
 
 	vector<Pos> source_pos(W);
 	vector<Pos> house_pos(K);
