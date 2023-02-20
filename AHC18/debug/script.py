@@ -21,3 +21,5 @@ for seed in SEED:
 
 cost.loc[SEED[0],['ave','std']] = cost['cost'].mean(), cost['cost'].std()
 cost.to_csv('cost.csv')
+print('ave: ', cost.loc[SEED[0],'ave'])
+print('std: ', cost.loc[SEED[0],'std'])

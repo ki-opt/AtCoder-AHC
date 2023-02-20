@@ -137,7 +137,7 @@ public:
 
 	void destruct(int y, int x) {
 		// excavate (y, x) with fixed power until destruction
-		const int power = 100;
+		const int power = 150;
 		while (!field.is_broken[y][x]) {
 			Response result = field.query(y, x, power);
 			if (result == Response::finish) {
