@@ -3,7 +3,8 @@ from subprocess import PIPE
 import re
 import pandas as pd
 
-SEED = [i for i in range(0,100)]#10)]
+#SEED = [i for i in range(5,6)]#10)]
+SEED =  [i for i in range(0,100)]#10)]
 
 cost = pd.DataFrame(index=SEED,columns=['cost','ave','std'])
 
