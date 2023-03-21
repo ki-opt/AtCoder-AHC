@@ -36,8 +36,7 @@ class Block {
 public:
 	vector<Pos> pos;				// blockのpos
 	int block_id;					// blockのid
-	int pair_use = -1;			// pairで使っているblock
-	int index_pair_use = -1;	// pairで使っているblockのindex
+	int pair_flag;					// pairで使っているブロック
 };
 
 class Solver {
@@ -83,11 +82,9 @@ public:
 			covered_silt[silt_id][RIGHT].zx_zy[add_pos[i].z][add_pos[i].y] = 0;
 		}
 		block[silt_id][block[silt_id].size()-1].block_id = MAX_ID;
-		// block_idの加算
-		MAX_ID++;
 	}
 	
-	int reuse_block(int silt_id, int block_size) {
+	int reuse_block(int silt_id, int block_size, int overlap_flag) {
 		if (block_size <= 2) {
 			// 縦棒の調査
 			for (int y = 0; y < D; y++) {
@@ -143,6 +140,46 @@ public:
 					}
 				}
 			}
+			if (overlap_flag == 1) {
+				// 横棒（回転含む）の調査 -> y方向 -> 重なりがあっても配置 
+				for (int z = 0; z < D; z++) {
+					for (int y = 0; y < D - 1; y++) {
+						//if (covered_silt[silt_id][RIGHT].zx_zy[z][y] == 0 || covered_silt[silt_id][RIGHT].zx_zy[z][y+1] == 0) continue;
+						if (!(silt[silt_id][RIGHT].zx_zy[z][y] == 1 && silt[silt_id][RIGHT].zx_zy[z][y+1] == 1)) continue;
+						int x;
+						for (x = 0; x < D; x++) {
+							//if (covered_silt[silt_id][FRONT].zx_zy[z][x] == 1) {
+							if (silt[silt_id][FRONT].zx_zy[z][x] == 1 && (block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x][y+1][z] == 0)) {
+								break;
+							}
+						}
+						if (x < D) {
+							vector<Pos> add_pos{ Pos{x,y,z}, Pos{x,y+1,z} };
+							add_block(silt_id, add_pos);
+							return 1;
+						}
+					}
+				}
+				// 横棒の調査 -> x方向 -> 重なりがあっても配置
+				for (int z = 0; z < D; z++) {
+					for (int x = 0; x < D - 1; x++) {
+						//if (covered_silt[silt_id][FRONT].zx_zy[z][x] == 0 || covered_silt[silt_id][FRONT].zx_zy[z][x+1] == 0) continue;
+						if (!(silt[silt_id][FRONT].zx_zy[z][x] == 1 && silt[silt_id][FRONT].zx_zy[z][x+1] == 1)) continue;
+						int y;
+						for (y = 0; y < D; y++) {
+							//if (covered_silt[silt_id][RIGHT].zx_zy[z][y] == 1) {
+							if (silt[silt_id][RIGHT].zx_zy[z][y] == 1 && (block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x+1][y][z] == 0)) {
+								break;
+							}
+						}
+						if (y < D) {
+							vector<Pos> add_pos{ Pos{x,y,z}, Pos{x+1,y,z} };
+							add_block(silt_id, add_pos);
+							return 1;
+						}
+					}
+				}
+			}
 		} else if (block_size > 2) {
 			cout << "not implemented"; getchar();
 		}
@@ -165,8 +202,10 @@ public:
 				}
 				if (x_1 < D) {	// 該当シルエットを発見
 					vector<Pos> add_pos{ Pos{x_1,y_1,z_1}, Pos{x_1,y_1,z_1+1} };
-					if (reuse_block(SILT_2, add_pos.size()) == 1) {		// reuse可能か調査->SILT_2
+					if (reuse_block(SILT_2, add_pos.size(), 0) == 1) {		// reuse可能か調査->SILT_2
 						add_block(SILT_1, add_pos);							// blockなどの更新
+						// block_idの加算
+						MAX_ID++;
 						z_1++;
 					}
 				}
@@ -184,8 +223,10 @@ public:
 				}
 				if (x < D) {
 					vector<Pos> add_pos{ Pos{x,y,z}, Pos{x,y+1,z} };
-					if (reuse_block(SILT_2, add_pos.size()) == 1) {
+					if (reuse_block(SILT_2, add_pos.size(), 0) == 1) {
 						add_block(SILT_1, add_pos);
+						// block_idの加算
+						MAX_ID++;
 						y++;
 					}
 				}
@@ -203,8 +244,52 @@ public:
 				}
 				if (y < D) {
 					vector<Pos> add_pos{ Pos{x,y,z}, Pos{x+1,y,z} };
-					if (reuse_block(SILT_2, add_pos.size()) == 1) {
+					if (reuse_block(SILT_2, add_pos.size(), 0) == 1) {
 						add_block(SILT_1, add_pos);
+						// block_idの加算
+						MAX_ID++;
+						x++;
+					}
+				}
+			}
+		}
+		// 横棒（y方向）-> 重なりがあっても配置
+		for (int z = 0; z < D; z++) {
+			for (int y = 0; y < D - 1; y++) {
+				if (silt[SILT_1][RIGHT].zx_zy[z][y] == 0 || silt[SILT_1][RIGHT].zx_zy[z][y+1] == 0) continue;
+				int x;
+				for (x = 0; x < D; x++) {
+					if (silt[SILT_1][FRONT].zx_zy[z][x] == 1 && (block_xyz[SILT_1][x][y][z] == 0 && block_xyz[SILT_1][x][y+1][z] == 0)) {
+						break;
+					}
+				}
+				if (x < D) {
+					vector<Pos> add_pos{ Pos{x,y,z}, Pos{x,y+1,z} };
+					if (reuse_block(SILT_2, add_pos.size(), 1) == 1) {
+						add_block(SILT_1, add_pos);
+						// block_idの加算
+						MAX_ID++;
+						y++;
+					}
+				}
+			}
+		}
+		// 横棒（x方向）-> 重なりがあっても配置
+		for (int z = 0; z < D; z++) {
+			for (int x = 0; x < D - 1; x++) {
+				if (silt[SILT_1][FRONT].zx_zy[z][x] == 0 || silt[SILT_1][FRONT].zx_zy[z][x+1] == 0) continue;
+				int y;
+				for (y = 0; y < D; y++) {
+					if (silt[SILT_1][RIGHT].zx_zy[z][y] == 1 && (block_xyz[SILT_1][x][y][z] == 0 && block_xyz[SILT_1][x+1][y][z] == 0)) {
+						break;
+					}
+				}
+				if (y < D) {
+					vector<Pos> add_pos{ Pos{x,y,z}, Pos{x+1,y,z} };
+					if (reuse_block(SILT_2, add_pos.size(), 1) == 1) {
+						add_block(SILT_1, add_pos);
+						// block_idの加算
+						MAX_ID++;
 						x++;
 					}
 				}
@@ -227,7 +312,25 @@ public:
 						block[i][block[i].size()-1].block_id = MAX_ID;
 						// block_xyzの更新
 						block_xyz[i][x][y][z] = MAX_ID;
-						covered_silt[i][FRONT].zx_zy[z][x] = 0; covered_silt[i][RIGHT].zx_zy[z][y] = 0;	// シルエットカバー済み
+						covered_silt[i][FRONT].zx_zy[z][x] = 0; covered_silt[i][RIGHT].zx_zy[z][y] = 0;	// シルエットカバー済み				
+						if (i == SILT_1) {	// silt_idが0の場合, blockを再利用
+							for (int z_2 = 0; z_2 < D; z_2++) {
+								for (int x_2 = 0; x_2 < D; x_2++) {
+									if (silt[SILT_2][FRONT].zx_zy[z_2][x_2] == 0) continue;
+									for (int y_2 = 0; y_2 < D; y_2++) {
+										if (silt[SILT_2][RIGHT].zx_zy[z_2][y_2] == 0) continue;
+										if (!(covered_silt[SILT_2][FRONT].zx_zy[z_2][x_2] == 1 || covered_silt[SILT_2][RIGHT].zx_zy[z_2][y_2] == 1)) continue;
+										block[SILT_2].push_back(Block{});
+										block[SILT_2][block[SILT_2].size()-1].pos.push_back(Pos{x_2,y_2,z_2});
+										block[SILT_2][block[SILT_2].size()-1].block_id = MAX_ID;
+										block_xyz[SILT_2][x_2][y_2][z_2] = MAX_ID;
+										covered_silt[SILT_2][FRONT].zx_zy[z_2][x_2] = 0; covered_silt[SILT_2][RIGHT].zx_zy[z_2][y_2] = 0;
+										goto GOTO;
+									}
+								}
+							}
+						}
+GOTO:
 						// block_idの加算
 						MAX_ID++;
 					}
@@ -242,12 +345,20 @@ public:
 		double wrk_value = 0;
 		for (int i = 0; i < N_SILHOUETTE; i++) {
 			for (int j = 0; j < block[i].size(); j++) {
-				int cor_flag = 0;
 				for (int k = 0; k < block[1-i].size(); k++) {
-					if (block[i][j].block_id == block[1-i][k].block_id) { cor_flag = 1; break; }
+					if (block[i][j].block_id == block[1-i][k].block_id) { 
+						block[i][j].pair_flag = 1; 
+						break;
+					}
 				}
-				if (cor_flag == 0) value += block[i][j].pos.size();
-				else wrk_value += (1.0 / (double)block[i][j].pos.size());
+				if (block[i][j].pair_flag == 0) {
+					value += block[i][j].pos.size();
+				}
+			}
+		}
+		for (int j = 0; j < block[SILT_1].size(); j++) {				
+			if (block[SILT_1][j].pair_flag == 1) {
+				wrk_value += (1.0 / (double)block[SILT_1][j].pos.size());
 			}
 		}
 		return round((double)pow(10, 9) * ((double)value + wrk_value));
@@ -312,16 +423,10 @@ INVALID:
 	void print_block() {
 		cout << MAX_ID - 1 << endl;
 		for (int i = 0; i < N_SILHOUETTE; i++) {
-			vector<vector<vector<int>>> result(D, vector<vector<int>>(D, vector<int>(D, 0)));
-			for (int iter = 0; iter < block[i].size(); iter++) {
-				for (int j = 0; j < block[i][iter].pos.size(); j++) {
-					result[block[i][iter].pos[j].x][block[i][iter].pos[j].y][block[i][iter].pos[j].z] = (i * block[0].size()) + iter + 1;
-				}
-			}
 			for (int x = 0; x < D; x++) {
 				for (int y = 0; y < D; y++) {
 					for (int z = 0; z < D; z++) {
-						cout << result[x][y][z] << " ";
+						cout << block_xyz[i][x][y][z] << " ";
 					}
 				}
 			}

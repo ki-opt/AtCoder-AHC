@@ -12,7 +12,7 @@ for seed in SEED:
 	elif seed < 1000: filename = f'0{seed}'
 	else: input('error')
 	res = subprocess.run(f'powershell -Command ./out.exe {filename}.txt', stderr=PIPE)
-   #res = subprocess.run(f'powershell -Command tester/compiled/./vis.exe tester/inst/{filename}.txt tester/out/{filename}.txt')
+	res = subprocess.run(f'powershell -Command tester/compiled/./vis.exe tester/inst/{filename}.txt tester/out/{filename}.txt')
    #input(res)
 	data = pd.read_csv(f'tester/score/{filename}.txt',header=None)
 	score.loc[seed,'score'] = data.iloc[0,0]
