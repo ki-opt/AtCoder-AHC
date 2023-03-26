@@ -9,6 +9,8 @@
 #include <queue>
 #include <bitset>
 #include <cmath>
+#include <random>
+#include <algorithm>
 
 #define CONTEST 0 // true->コンテスト
 
@@ -17,10 +19,35 @@
 #define SILT_2 1
 #define FRONT 0
 #define RIGHT 1
+#define X 0
+#define Y 1
+#define Z 2
+#define N_ROTS 4
+#define ROTATION_RAD 3.141592653589793 / 2.0
+#define SEED 0
+
+// パラメータ
+#define N_ARROWED_BLKS 3
 
 using namespace std;
 
 int MAX_ID = 1;
+
+class RandomNumber {
+public:
+	mt19937 mt;
+	RandomNumber(int seed) : mt(seed) {} 
+	int range(int min, int max) {
+		uniform_int_distribution<> ransu(min,max); // [min,max)の乱数
+		return ransu(mt);
+	}
+	int ransu32bit() {
+		return mt();
+	}
+	void array_shuffle(vector<int> &vec) {
+		shuffle(vec.begin(), vec.end(), mt);
+	}
+};
 
 class Silhouette {
 public:
@@ -39,14 +66,24 @@ public:
 	int pair_flag;					// pairで使っているブロック
 };
 
+class AddedBlock {
+public:
+	Pos start_pos;
+	vector<int> dir;
+};
+
 class Solver {
 public:
+	int START_BLOCK_VOLUME = 2;
 	int D;
 	vector<vector<Block>> block;
 	vector<vector<vector<vector<int>>>> block_xyz;
 	vector<vector<Silhouette>> silt, covered_silt;
-	Solver(vector<vector<Silhouette>> silt, vector<vector<Silhouette>> covered_silt, int D) : 
-		silt(silt), covered_silt(silt), D(D) {
+	RandomNumber random_number;
+	vector<vector<vector<vector<vector<Pos>>>>> overlap;
+	Solver(vector<vector<Silhouette>> silt, vector<vector<Silhouette>> covered_silt, int D, RandomNumber random_number,
+			vector<vector<vector<vector<vector<Pos>>>>> overlap) : 
+			silt(silt), covered_silt(silt), D(D), random_number(random_number), overlap(overlap) {
 		block.resize(N_SILHOUETTE);
 		block_xyz.resize(N_SILHOUETTE);
 		for (int i = 0; i < N_SILHOUETTE; i++) {
@@ -64,12 +101,189 @@ public:
 	}
 	
 	int solve() {
+		place_block();
 		place_two_block();
 		one_by_one_peace();	// 1×1のブロックを設置
-		//refine_block_id();	// 多分バグ
 		int ret = legal_check();
 		return ret;
 	}
+
+/* place block */
+	/*	int check(const int &silt_id, const int &right_front, const int &dir, const int &x, const int &y, const int &z) {
+		if (dir == X) {
+			return (silt[silt_id][right_front].zx_zy[z][y] == 1 &&
+				silt[silt_id][1-right_front].zx_zy[z][x] == 1 && silt[silt_id][1-right_front].zx_zy[z][x+1] == 1 &&
+				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x+1][y][z] == 0);
+		} else if (dir == Y) {
+			return (silt[silt_id][right_front].zx_zy[z][y] == 1 && silt[silt_id][right_front].zx_zy[z][y+1] == 1 &&
+				silt[silt_id][1-right_front].zx_zy[z][x] == 1 &&
+				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x][y+1][z] == 0);
+		} else if (dir == Z) {
+			return (silt[silt_id][right_front].zx_zy[z][y] == 1 && silt[silt_id][right_front].zx_zy[z+1][y] == 1 &&
+				silt[silt_id][1-right_front].zx_zy[z][x] == 1 && silt[silt_id][1-right_front].zx_zy[z+1][x] == 1 &&
+				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x][y][z+1] == 0);
+		} else { cout << "error"; getchar(); return 0; }
+	}
+*/
+	
+	vector<Pos> rotation (const vector<Pos> &added_block, double x_rad, double y_rad, double z_rad) {
+		vector<double> rad = {x_rad, y_rad, z_rad};
+		vector<Pos> after_rot(added_block.size());
+		Pos value = Pos{INT_MAX,INT_MAX,INT_MAX};
+		//Pos value;
+		for (int i = 0; i < added_block.size(); i++) {
+			// x軸回転
+			after_rot[i].x = added_block[i].x;
+			after_rot[i].y = round(cos(rad[X]))*added_block[i].y + (-round(sin(rad[X]))*added_block[i].z);
+			after_rot[i].z = round(sin(rad[X]))*added_block[i].y + round(cos(rad[X]))*added_block[i].z;
+			// y軸回転
+			Pos wrk = after_rot[i];
+			after_rot[i].x = round(cos(rad[Y]))*wrk.x + round(sin(rad[Y]))*wrk.z;
+			after_rot[i].y = wrk.y;
+			after_rot[i].z = (-round(sin(rad[Y]))*wrk.x) + round(cos(rad[Y]))*wrk.z;
+			// z軸回転
+			wrk = after_rot[i];
+			after_rot[i].x = round(cos(rad[Z]))*wrk.x + (-round(sin(rad[Z]))*wrk.y);
+			after_rot[i].y = round(sin(rad[Z]))*wrk.x + round(cos(rad[Z]))*wrk.y;
+			after_rot[i].z = wrk.z;
+			// min value
+			//*
+			if (after_rot[i].x < value.x) value.x = after_rot[i].x;
+			if (after_rot[i].y < value.y) value.y = after_rot[i].y;
+			if (after_rot[i].z < value.z) value.z = after_rot[i].z;//*/			
+		}
+		for (int i = 0; i < added_block.size(); i++) {
+			after_rot[i].x -= value.x;
+			after_rot[i].y -= value.y;
+			after_rot[i].z -= value.z;
+		}//*
+		return after_rot;
+	}
+
+	int check_other_silt(int other_silt_id, const vector<Pos> &rotate_added_block, vector<Pos> &other_added_block) {
+		for (int x=0; x<D; x++) for (int y=0; y<D; y++) for (int z=0; z<D; z++) {
+			vector<Pos> matched_block;
+			for (int i = 0; i < rotate_added_block.size(); i++) {
+				Pos cur_pos = Pos{rotate_added_block[i].x + x, rotate_added_block[i].y + y, rotate_added_block[i].z + z};
+				if (cur_pos.x < 0 || cur_pos.x >= D ||	cur_pos.y < 0 || cur_pos.y >= D || cur_pos.z < 0 || cur_pos.z >= D) { 
+					break; 
+				}
+				if (silt[other_silt_id][FRONT].zx_zy[cur_pos.z][cur_pos.x] == 1 && silt[other_silt_id][RIGHT].zx_zy[cur_pos.z][cur_pos.y] == 1 &&
+						block_xyz[other_silt_id][cur_pos.x][cur_pos.y][cur_pos.z] == 0) {
+					matched_block.push_back(cur_pos);
+					if (i + 1 == rotate_added_block.size()) {
+						other_added_block = matched_block;
+						return 1;
+					}
+				} else {
+					break;
+				}
+			}
+		}		
+		return 0;	// blockなし
+	}
+
+	void place_block() {
+		// アルゴリズム
+		// 1.シルエットの重なり部分からスタート(ランダム可->x,y,z)
+		vector<Pos> start_xyz_pos(D*D*D); vector<int> start_xyz_pos_index(D*D*D);
+		for (int x=0; x<D; x++) for (int y=0; y<D; y++) for (int z=0; z<D; z++) {
+			start_xyz_pos[x*D*D+y*D+z] = Pos{x,y,z};
+			start_xyz_pos_index[x*D*D+y*D+z] = x*D*D+y*D+z;
+		}
+		random_number.array_shuffle(start_xyz_pos_index);
+		for (int index = 0; index < D*D*D; index++) {
+		//for (int x=0; x<D; x++) for (int y=0; y<D; y++) for (int z=0; z<D; z++) {	// ランダムではないver.
+			int x = start_xyz_pos[start_xyz_pos_index[index]].x, y = start_xyz_pos[start_xyz_pos_index[index]].y, z = start_xyz_pos[start_xyz_pos_index[index]].z;
+			// 1-1.silt_idとright_frontの決定（silt_idとright_frontをランダムに決定しても良い）
+			int silt_id = SILT_1;	//int right_front = RIGHT;
+			int other_silt_id = 1 - silt_id;
+			if (overlap[silt_id][x][y][z].size() == 0 || block_xyz[silt_id][x][y][z] > 0) continue; //x,y,zにおけるか調査
+			Pos cur_pos = Pos{x,y,z};
+			vector<Pos> added_block = {Pos{x,y,z}};	// silt_idにaddするblock
+			vector<Pos> other_added_block;				// other_silt_idにaddするblock
+			vector<vector<vector<int>>> fake_block(D,vector<vector<int>>(D,vector<int>(D,0)));
+			fake_block[cur_pos.x][cur_pos.y][cur_pos.z] = 1;	// fake_block
+			// 2.進行方向を決める
+			// ovelap_indexの作成
+			vector<int> overlap_index(overlap[silt_id][cur_pos.x][cur_pos.y][cur_pos.z].size());
+			for (int i = 0; i < overlap_index.size(); i++) overlap_index[i] = i;
+			random_number.array_shuffle(overlap_index);
+			for (int cnt = 0; cnt < overlap_index.size(); cnt++) {
+				int i = overlap_index[cnt];
+				// 3.ブロックの重なりがないかチェック
+				Pos next_pos = overlap[silt_id][cur_pos.x][cur_pos.y][cur_pos.z][i];
+				if (fake_block[next_pos.x][next_pos.y][next_pos.z] == 1 || block_xyz[silt_id][next_pos.x][next_pos.y][next_pos.z] > 0) {
+					continue;
+				}
+				added_block.push_back(next_pos);
+				// 4.→ 同じ形状のブロックをもう一方におけるかチェック(ここは乱数必要ない)
+				// 回転
+				int find_flag = 0;
+				for (int x_rad=0; x_rad<N_ROTS; x_rad++) {
+					for (int y_rad=0; y_rad<N_ROTS; y_rad++) {
+						for (int z_rad=0; z_rad<N_ROTS; z_rad++) {
+							vector<Pos> rotate_added_block = rotation(added_block, ROTATION_RAD*x_rad, ROTATION_RAD*y_rad, ROTATION_RAD*z_rad);
+							if (check_other_silt(other_silt_id, rotate_added_block, other_added_block) == 1) {	// もう一方にブロックを置けるか調査
+								find_flag = 1;
+								break;	// true->put block
+							}
+						}
+						if (find_flag == 1) break;
+					}
+					if (find_flag == 1) break;
+				}
+				if (find_flag == 1) {
+					// 次のブロックに進む
+					fake_block[next_pos.x][next_pos.y][next_pos.z] = 1;
+					cur_pos = next_pos;
+					cnt = -1;
+					// ovelap_indexの修正
+					overlap_index.resize(overlap[silt_id][cur_pos.x][cur_pos.y][cur_pos.z].size());
+					for (int i = 0; i < overlap_index.size(); i++) overlap_index[i] = i;
+					random_number.array_shuffle(overlap_index);
+				} else {
+					// 最後のブロックを削除
+					added_block.pop_back();
+				}
+			}
+			if (added_block.size() >= N_ARROWED_BLKS) {
+				// silt_idにblockを追加
+				add_block(silt_id, added_block);
+				// other_siltにblockを追加
+				add_block(other_silt_id, other_added_block);
+				MAX_ID++;
+			}
+			// 5.→ →置ければ2に戻る
+			// 6.→ →置けなければそれまでのブロックを追加し、1に戻る		
+		}
+		/*
+		for (int x = 0; x < D; x++) {
+			for (int y = 0; y < D; y++) {
+				for (int z = 0; z < D; z++) {
+					// 縦棒が置けるか判定 -> z方向
+					// ここ乱数でXYZの3択にしてもいいかもね
+					//if (z + 1 < D) {
+					vector<Pos> added_block = { Pos{x,y,z}, Pos{x,y,z+1} };
+					if (check(silt_id, right_front, Z, x, y, z)) {	// シルエットにかかり、ブロックが置かれていない場合
+						// 
+						while();
+						// 3次元で回転（回転なし+90°+180°+270°の4つ
+						for (int rot_x = 1; rot_x < N_ROTS; rot_x++) for (int rot_y = 0; rot_y < N_ROTS; rot_y++) for (int rot_z = 0; rot_z < N_ROTS; rot_z++) {
+							vector<Pos> rotate_block = rotation(added_block, ROTATION_RAD*rot_x, ROTATION_RAD*rot_y, ROTATION_RAD*rot_z);
+						}
+					}
+					//}
+					// 後で修正 if (x + 1 < D) {}
+					if (false) {
+						//DFS(Pos{x,y,z}, START_BLOCK_VOLUME, Y);
+						//DFS(Pos{x,y,z}, START_BLOCK_VOLUME, Z);
+					}
+				}
+			}
+		}*/
+	}
+/* place block */
 
 	void add_block(int silt_id, const vector<Pos> &add_pos) {
 		// blockの追加, block_xyzの更新
@@ -365,6 +579,7 @@ GOTO:
 	}
 
 	int legal_check() {
+		// block_sizeが一緒であることの言及が足りない
 		int ret = 0;
 		for (int i = 0; i < N_SILHOUETTE; i++) {
 			for (int z = 0; z < D; z++) {
@@ -445,7 +660,7 @@ int main(int argc, char* argv[]) {
 		output_filename = "tester/out/" + w_filename;
 		score_filename = "tester/score/" + w_filename;
 	} else {
-		w_filename = "0097.txt";
+		w_filename = "0000.txt";
 		filename = "debug/tester/inst/" + w_filename;
 		output_filename = "debug/tester/out/" + w_filename;
 		score_filename = "debug/tester/score/" + w_filename;
@@ -478,19 +693,47 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	Solver solver(silt, silt, D);
-	int ret = solver.solve();
+	// overlapの計算
+	vector<vector<vector<vector<vector<Pos>>>>> overlap(N_SILHOUETTE);
+	for (int i = 0; i < N_SILHOUETTE; i++) {
+		overlap[i].resize(D);
+		for (int x = 0; x < D; x++) {
+			overlap[i][x].resize(D);
+			for (int y = 0; y < D; y++) {
+				overlap[i][x][y].resize(D);
+				for (int z = 0; z < D; z++) {
+					if (silt[i][FRONT].zx_zy[z][x] == 1 && silt[i][RIGHT].zx_zy[z][y] == 1) { 
+						if (z + 1 < D) if (silt[i][FRONT].zx_zy[z+1][x] == 1 && silt[i][RIGHT].zx_zy[z+1][y] == 1) overlap[i][x][y][z].push_back(Pos{x,y,z+1});
+						if (z - 1 >= 0) if (silt[i][FRONT].zx_zy[z-1][x] == 1 && silt[i][RIGHT].zx_zy[z-1][y] == 1) overlap[i][x][y][z].push_back(Pos{x,y,z-1});
+						if (x + 1 < D) if (silt[i][FRONT].zx_zy[z][x+1] == 1 && silt[i][RIGHT].zx_zy[z][y] == 1) overlap[i][x][y][z].push_back(Pos{x+1,y,z});
+						if (x - 1 >= 0) if (silt[i][FRONT].zx_zy[z][x-1] == 1 && silt[i][RIGHT].zx_zy[z][y] == 1) overlap[i][x][y][z].push_back(Pos{x-1,y,z});
+						if (y + 1 < D) if (silt[i][FRONT].zx_zy[z][x] == 1 && silt[i][RIGHT].zx_zy[z][y+1] == 1) overlap[i][x][y][z].push_back(Pos{x,y+1,z});
+						if (y - 1 >= 0) if (silt[i][FRONT].zx_zy[z][x] == 1 && silt[i][RIGHT].zx_zy[z][y-1] == 1) overlap[i][x][y][z].push_back(Pos{x,y-1,z});
+					}
+				}
+			}
+		}
+	}
+
 #if !CONTEST
-	//cout << ret << "\n";
-	if (ret == 1) {
-		long double score = solver.evaluation();
-		cout << "seed: " << w_filename << "  " << "legal" << ": " << score << "\n";
-		//cerr << "legal" << ": " << solver.evaluation() << "\n";
-		solver.output_result_file(output_filename);
-		solver.output_score(score_filename, score);
-		//solver.print_block();
+	int ret;
+	for (int index=0;index<1;index++) {
+		RandomNumber random_number(SEED+index);
+		Solver solver(silt, silt, D, random_number, overlap);
+		ret = solver.solve();
+		if (ret == 1) {
+			long double score = solver.evaluation();
+			cout << "seed: " << w_filename << "  " << "legal" << ": " << score << "\n";
+			//cerr << "legal" << ": " << solver.evaluation() << "\n";
+			solver.output_result_file(output_filename);
+			solver.output_score(score_filename, score);
+			solver.print_block();
+		}
 	}
 #else
+	RandomNumber random_number(SEED);
+	Solver solver(silt, silt, D, random_number, overlap);
+	int ret = solver.solve();
 	solver.print_block();
 #endif
 }
