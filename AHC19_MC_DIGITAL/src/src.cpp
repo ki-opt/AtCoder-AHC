@@ -11,8 +11,11 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
+//#include <time.h>
+#include <chrono>
 
 #define CONTEST 0 // true->コンテスト
+#define INSTANCE_NAME "0000.txt"
 
 #define N_SILHOUETTE 2
 #define SILT_1 0
@@ -27,11 +30,13 @@
 #define SEED 0
 
 // パラメータ
-#define N_ARROWED_BLKS 3
+#define N_ARROWED_BLKS 3	// >=N_ARROWED_BLKSの場合は許可
 
 using namespace std;
 
 int MAX_ID = 1;
+
+
 
 class RandomNumber {
 public:
@@ -64,6 +69,7 @@ public:
 	vector<Pos> pos;				// blockのpos
 	int block_id;					// blockのid
 	int pair_flag;					// pairで使っているブロック
+	int other_blk_index;			// もう一方で使用しているblockのindex
 };
 
 class AddedBlock {
@@ -78,6 +84,7 @@ public:
 	int D;
 	vector<vector<Block>> block;
 	vector<vector<vector<vector<int>>>> block_xyz;
+	vector<vector<Silhouette>> cnt_block;	// なくてもいいかも
 	vector<vector<Silhouette>> silt, covered_silt;
 	RandomNumber random_number;
 	vector<vector<vector<vector<vector<Pos>>>>> overlap;
@@ -86,47 +93,145 @@ public:
 			silt(silt), covered_silt(silt), D(D), random_number(random_number), overlap(overlap) {
 		block.resize(N_SILHOUETTE);
 		block_xyz.resize(N_SILHOUETTE);
+		cnt_block.resize(N_SILHOUETTE);
 		for (int i = 0; i < N_SILHOUETTE; i++) {
 			block_xyz[i].resize(D);
-				for (int x = 0; x < D; x++) {
-					block_xyz[i][x].resize(D);
-					for (int y = 0; y < D; y++) { 
-						block_xyz[i][x][y].resize(D);
-						for (int z = 0; z < D; z++) {
-							block_xyz[i][x][y][z] = 0;
-						}
+			for (int x = 0; x < D; x++) {
+				block_xyz[i][x].resize(D);
+				for (int y = 0; y < D; y++) { 
+					block_xyz[i][x][y].resize(D);
+					for (int z = 0; z < D; z++) {
+						block_xyz[i][x][y][z] = 0;
 					}
 				}
+			}
+			cnt_block[i].resize(N_SILHOUETTE);
+			for (int f_r = 0; f_r < N_SILHOUETTE; f_r++) {
+				cnt_block[i][f_r].zx_zy.resize(D);
+				for (int z = 0; z < D; z++) {
+					cnt_block[i][f_r].zx_zy[z].resize(D);
+					for (int xy = 0; xy < D; xy++) cnt_block[i][f_r].zx_zy[z][xy] = 0;
+				}
+			}
 		}
 	}
 	
 	int solve() {
-		place_block();
-		place_two_block();
-		one_by_one_peace();	// 1×1のブロックを設置
+		clock_t start = clock();
+		// ALNSしたい
+		place_block();					// 1×2以上のブロックを設置->複数回繰り返した方が良さそう
+		place_two_block();			// 1×2のブロックを設置
+		one_by_one_peace();			// 1×1のブロックを設置
+		erase_overlap_block();		// ブロックの重なりを除去
+		clock_t end = clock();
+#if !CONTEST
+		cout << "duration: " <<  (double)(end - start) / CLOCKS_PER_SEC << "sec\n";
+#endif
 		int ret = legal_check();
 		return ret;
 	}
 
-/* place block */
-	/*	int check(const int &silt_id, const int &right_front, const int &dir, const int &x, const int &y, const int &z) {
-		if (dir == X) {
-			return (silt[silt_id][right_front].zx_zy[z][y] == 1 &&
-				silt[silt_id][1-right_front].zx_zy[z][x] == 1 && silt[silt_id][1-right_front].zx_zy[z][x+1] == 1 &&
-				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x+1][y][z] == 0);
-		} else if (dir == Y) {
-			return (silt[silt_id][right_front].zx_zy[z][y] == 1 && silt[silt_id][right_front].zx_zy[z][y+1] == 1 &&
-				silt[silt_id][1-right_front].zx_zy[z][x] == 1 &&
-				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x][y+1][z] == 0);
-		} else if (dir == Z) {
-			return (silt[silt_id][right_front].zx_zy[z][y] == 1 && silt[silt_id][right_front].zx_zy[z+1][y] == 1 &&
-				silt[silt_id][1-right_front].zx_zy[z][x] == 1 && silt[silt_id][1-right_front].zx_zy[z+1][x] == 1 &&
-				block_xyz[silt_id][x][y][z] == 0 && block_xyz[silt_id][x][y][z+1] == 0);
-		} else { cout << "error"; getchar(); return 0; }
+	void erase_overlap_block() {
+		// 本来は2×1ブロック追加時(+それ以上時も)に考慮すべき
+		// ここの同じブロックを使っているのを同定するのは使えるかも
+		for (int silt_id = 0; silt_id < N_SILHOUETTE; silt_id++) {
+			for (int j = 0; j < block[silt_id].size(); j++) {
+				for (int k = 0; k < block[1-silt_id].size(); k++) {
+					if (block[silt_id][j].block_id == block[1-silt_id][k].block_id) { 
+						block[silt_id][j].pair_flag = 1;
+						block[silt_id][j].other_blk_index = k;
+						block[silt_id][k].other_blk_index = j;
+						break;
+					}
+				}
+			}
+		}
+		int silt_id = SILT_1, other_silt_id = SILT_2;
+		for (int i = block[silt_id].size()-1; i >= 0; i--) {
+			if (block[silt_id][i].pair_flag == 0) continue;
+			int failed_flag = 0;
+			vector<vector<Silhouette>> copy_cnt_block = cnt_block;
+			// 左側のシルエットに着目(SILT_1)
+			for (int j = 0; j < block[silt_id][i].pos.size(); j++) {
+				Pos pos_1 = block[silt_id][i].pos[j];//, pos_2 block[1-silt_id][i].pos;
+				copy_cnt_block[silt_id][FRONT].zx_zy[pos_1.z][pos_1.x]--;
+				copy_cnt_block[silt_id][RIGHT].zx_zy[pos_1.z][pos_1.y]--;
+				if (copy_cnt_block[silt_id][FRONT].zx_zy[pos_1.z][pos_1.x] <= 0 || copy_cnt_block[silt_id][RIGHT].zx_zy[pos_1.z][pos_1.y] <= 0) {
+					failed_flag = 1;
+					break;
+				}
+			}
+			if (failed_flag == 1) continue;	// 消すとまずいブロックであることが判明(SILT_1)
+			// 右側のシルエットに着目(SILT_2)
+			for (int j = 0; j < block[other_silt_id][block[silt_id][i].other_blk_index].pos.size(); j++) {
+				Pos pos_2 = block[other_silt_id][block[silt_id][i].other_blk_index].pos[j];
+				copy_cnt_block[other_silt_id][FRONT].zx_zy[pos_2.z][pos_2.x]--;
+				copy_cnt_block[other_silt_id][RIGHT].zx_zy[pos_2.z][pos_2.y]--;
+				if (copy_cnt_block[other_silt_id][FRONT].zx_zy[pos_2.z][pos_2.x] <= 0 || copy_cnt_block[other_silt_id][RIGHT].zx_zy[pos_2.z][pos_2.y] <= 0) {
+					failed_flag = 1;
+					break;
+				}
+			}
+			if (failed_flag == 1) continue;	// 消すとまずいブロック(SILT_2)
+			// ブロックの削除
+			for (int j = 0; j < block[silt_id][i].pos.size(); j++) {
+				Pos pos_1 = block[silt_id][i].pos[j], pos_2 = block[other_silt_id][block[silt_id][i].other_blk_index].pos[j];
+				// SILT_1
+				cnt_block[silt_id][FRONT].zx_zy[pos_1.z][pos_1.x]--;
+				cnt_block[silt_id][RIGHT].zx_zy[pos_1.z][pos_1.y]--;
+				block_xyz[silt_id][pos_1.x][pos_1.y][pos_1.z] = 0;
+				// SILT_2
+				cnt_block[other_silt_id][FRONT].zx_zy[pos_2.z][pos_2.x]--;
+				cnt_block[other_silt_id][RIGHT].zx_zy[pos_2.z][pos_2.y]--;
+				block_xyz[other_silt_id][pos_2.x][pos_2.y][pos_2.z] = 0;
+			}
+			if (i + 1 == MAX_ID - 1) {				// 特に気にせず消して良し
+				// blockを削除
+				block[silt_id].pop_back();
+				block[other_silt_id].pop_back();			
+				MAX_ID--;
+			} else {
+				for (int j = i + 1; j < block[silt_id].size() && block[silt_id][j].pair_flag == 1; j++) {
+					// block_xyzの修正
+					for (int k = 0; k < block[silt_id][j].pos.size(); k++) {
+						Pos pos_1 = block[silt_id][j].pos[k], pos_2 = block[other_silt_id][j].pos[k];
+						block_xyz[silt_id][pos_1.x][pos_1.y][pos_1.z]--;
+						block_xyz[other_silt_id][pos_2.x][pos_2.y][pos_2.z]--;
+					}
+					// block情報の修正
+					block[silt_id][j].block_id--;
+					int other_side = block[silt_id][j].other_blk_index;
+					block[silt_id][j].other_blk_index--;
+					block[other_silt_id][other_side].block_id--;
+					block[other_silt_id][other_side].other_blk_index--;
+				}
+				if (block[silt_id].size() < block[other_silt_id].size()) {
+					for (int j = block[silt_id].size(); j < block[other_silt_id].size(); j++) {
+						block[other_silt_id][j].block_id--;
+						for (int k = 0; k < block[other_silt_id][j].pos.size(); k++) {
+							Pos pos_2 = block[other_silt_id][j].pos[k];
+							block_xyz[other_silt_id][pos_2.x][pos_2.y][pos_2.z]--;
+						}
+					}
+				} else if (block[silt_id].size() > block[other_silt_id].size()) {
+					for (int j = block[other_silt_id].size(); j < block[silt_id].size(); j++) {
+						block[silt_id][j].block_id--;
+						for (int k = 0; k < block[silt_id][j].pos.size(); k++) { 
+							Pos pos_1 = block[silt_id][j].pos[k];
+							block_xyz[silt_id][pos_1.x][pos_1.y][pos_1.z]--;
+						}
+					}
+				}
+				// block自体の削除
+				block[silt_id].erase(cbegin(block[silt_id]) + i);
+				block[other_silt_id].erase(cbegin(block[other_silt_id]) + i);
+				MAX_ID--;
+			}//*/
+		}
 	}
-*/
-	
-	vector<Pos> rotation (const vector<Pos> &added_block, double x_rad, double y_rad, double z_rad) {
+
+/* place block */	
+	vector<Pos> rotation(const vector<Pos> &added_block, double x_rad, double y_rad, double z_rad) {
 		vector<double> rad = {x_rad, y_rad, z_rad};
 		vector<Pos> after_rot(added_block.size());
 		Pos value = Pos{INT_MAX,INT_MAX,INT_MAX};
@@ -181,6 +286,24 @@ public:
 			}
 		}		
 		return 0;	// blockなし
+	}
+
+	int overlap_check_for_added_block(int silt_id, int other_silt_id, const vector<Pos> &added_block, const vector<Pos> &other_added_block) {
+		int overlap_count = 0;
+		for (int i = 0; i < added_block.size(); i++) {
+			int x = added_block[i].x, y = added_block[i].y, z = added_block[i].z;
+			if (covered_silt[silt_id][FRONT].zx_zy[z][x] == 0 && covered_silt[silt_id][RIGHT].zx_zy[z][y] == 0) overlap_count++;
+		}
+		if (overlap_count == added_block.size()) {
+			return 0;
+		}		
+		/*
+		overlap_count = 0;
+		for (int i = 0; i < added_block.size(); i++) {
+
+		}
+		*/
+		return 1;
 	}
 
 	void place_block() {
@@ -248,11 +371,13 @@ public:
 				}
 			}
 			if (added_block.size() >= N_ARROWED_BLKS) {
-				// silt_idにblockを追加
-				add_block(silt_id, added_block);
-				// other_siltにblockを追加
-				add_block(other_silt_id, other_added_block);
-				MAX_ID++;
+				if (overlap_check_for_added_block(silt_id, other_silt_id, added_block, other_added_block)) {
+					// silt_idにblockを追加
+					add_block(silt_id, added_block);
+					// other_siltにblockを追加
+					add_block(other_silt_id, other_added_block);
+					MAX_ID++;
+				}
 			}
 			// 5.→ →置ければ2に戻る
 			// 6.→ →置けなければそれまでのブロックを追加し、1に戻る		
@@ -285,12 +410,14 @@ public:
 	}
 /* place block */
 
+/* place two or one block */
 	void add_block(int silt_id, const vector<Pos> &add_pos) {
 		// blockの追加, block_xyzの更新
 		block[silt_id].push_back(Block{});
 		for (int i = 0; i < add_pos.size(); i++) {
 			block[silt_id][block[silt_id].size()-1].pos.push_back(add_pos[i]);
 			block_xyz[silt_id][add_pos[i].x][add_pos[i].y][add_pos[i].z] = MAX_ID;
+			cnt_block[silt_id][FRONT].zx_zy[add_pos[i].z][add_pos[i].x]++; cnt_block[silt_id][RIGHT].zx_zy[add_pos[i].z][add_pos[i].y]++;
 			// covered_siltの更新
 			covered_silt[silt_id][FRONT].zx_zy[add_pos[i].z][add_pos[i].x] = 0;
 			covered_silt[silt_id][RIGHT].zx_zy[add_pos[i].z][add_pos[i].y] = 0;
@@ -526,6 +653,7 @@ public:
 						block[i][block[i].size()-1].block_id = MAX_ID;
 						// block_xyzの更新
 						block_xyz[i][x][y][z] = MAX_ID;
+						cnt_block[i][FRONT].zx_zy[z][x]++; cnt_block[i][RIGHT].zx_zy[z][y]++;
 						covered_silt[i][FRONT].zx_zy[z][x] = 0; covered_silt[i][RIGHT].zx_zy[z][y] = 0;	// シルエットカバー済み				
 						if (i == SILT_1) {	// silt_idが0の場合, blockを再利用
 							for (int z_2 = 0; z_2 < D; z_2++) {
@@ -538,6 +666,7 @@ public:
 										block[SILT_2][block[SILT_2].size()-1].pos.push_back(Pos{x_2,y_2,z_2});
 										block[SILT_2][block[SILT_2].size()-1].block_id = MAX_ID;
 										block_xyz[SILT_2][x_2][y_2][z_2] = MAX_ID;
+										cnt_block[SILT_2][FRONT].zx_zy[z_2][x_2]++; cnt_block[SILT_2][RIGHT].zx_zy[z_2][y_2]++;
 										covered_silt[SILT_2][FRONT].zx_zy[z_2][x_2] = 0; covered_silt[SILT_2][RIGHT].zx_zy[z_2][y_2] = 0;
 										goto GOTO;
 									}
@@ -553,6 +682,7 @@ GOTO:
 		}
 		//MAX_ID = block_id - 1;
 	}
+/* place two or one block */
 
 	long double evaluation() {
 		int value = 0;
@@ -561,7 +691,7 @@ GOTO:
 			for (int j = 0; j < block[i].size(); j++) {
 				for (int k = 0; k < block[1-i].size(); k++) {
 					if (block[i][j].block_id == block[1-i][k].block_id) { 
-						block[i][j].pair_flag = 1; 
+						block[i][j].pair_flag = 1;
 						break;
 					}
 				}
@@ -660,7 +790,7 @@ int main(int argc, char* argv[]) {
 		output_filename = "tester/out/" + w_filename;
 		score_filename = "tester/score/" + w_filename;
 	} else {
-		w_filename = "0000.txt";
+		w_filename = INSTANCE_NAME;
 		filename = "debug/tester/inst/" + w_filename;
 		output_filename = "debug/tester/out/" + w_filename;
 		score_filename = "debug/tester/score/" + w_filename;
@@ -728,6 +858,8 @@ int main(int argc, char* argv[]) {
 			solver.output_result_file(output_filename);
 			solver.output_score(score_filename, score);
 			solver.print_block();
+		} else {
+			//solver.print_block();
 		}
 	}
 #else
