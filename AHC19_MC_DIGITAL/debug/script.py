@@ -3,7 +3,7 @@ from subprocess import PIPE
 import re
 import pandas as pd
 
-SEED =  [i for i in range(0,100)]#10)]
+SEED =  [i for i in range(0,100)]#(0,100)]#10)]
 
 score = pd.DataFrame(index=SEED, columns=['score'])
 for seed in SEED:
@@ -17,10 +17,10 @@ for seed in SEED:
 	data = pd.read_csv(f'tester/score/{filename}.txt',header=None)
 	score.loc[seed,'score'] = data.iloc[0,0]
 
-score.loc[SEED[0],['ave','std']] = score['score'].mean(), score['score'].std()
-score.to_csv(f'tester/score/result.txt')
-print('ave: ', score.loc[SEED[0],'ave'] / pow(10,10))
-print('std: ', score.loc[SEED[0],'std'] / pow(10,10))
+ave, std = score['score'].mean(), score['score'].std()
+score.to_csv(f'tester/score/result.txt',index=None,header=None)
+print('ave: ', ave / pow(10,10))
+print('std: ', std / pow(10,10))
 
 '''
 for seed in SEED:

@@ -15,7 +15,7 @@
 #include <unordered_map>
 
 #define CONTEST 0 // true->コンテスト
-#define INSTANCE_NAME "0014.txt"
+#define INSTANCE_NAME "0090.txt"
 
 #define N_SILHOUETTE 2
 #define SILT_1 0
@@ -35,8 +35,8 @@
 #define N_ERASED_BLOCK_ALNS 4						// ALNSで消すブロックの数
 #define INC_ERASED_BLK_THRESHOLD	100			// ALNSで消すブロックを増やす閾値
 #define N_FIRST_PLACE_BLOCK_LIMIT 150			// place_block()の最初だけで使用
-#define N_PLACE_BLOCK_LIMIT 40					// D + N_PLACE_BLOCK_LIMIT -> place_block()で試用
-#define UPPER_BLOCK_SIZE 10						// ブロックサイズを制限
+#define N_PLACE_BLOCK_LIMIT 30					// D + N_PLACE_BLOCK_LIMIT -> place_block()で試用
+#define UPPER_BLOCK_SIZE 30						// ブロックサイズを制限
 #define MOVE_COVERED_BLK_SIZE 10					// すでにカバーされているブロックに侵攻できる上限
 // 時間パラメータ
 #define UPPER_TIME_LIMIT 6000
@@ -351,26 +351,9 @@ public:
 		return after_rot;
 	}
 
-	int check_other_silt(const int other_silt_id, const vector<Pos> &rotate_added_block, vector<Pos> &other_added_block) {
-		/*
-		int silt_id = 1 - other_silt_id;
-		int cnt = 0;
-		vector<Pos> start_xyz_pos(D*D*D); vector<int> start_xyz_pos_index(D*D*D);
+	int check_other_silt(int other_silt_id, const vector<Pos> &rotate_added_block, vector<Pos> &other_added_block) {
+		//vector<Pos> start_xyz_pos; vector<int> start_xyz_pos_index;
 		for (int x=0; x<D; x++) for (int y=0; y<D; y++) for (int z=0; z<D; z++) {
-			if (block_xyz[other_silt_id][x][y][z] == 0 && ((silt[other_silt_id][FRONT].zx_zy[z][x] == 1 && covered_silt[other_silt_id][RIGHT].zx_zy[z][y] == 1) ||
-					(covered_silt[other_silt_id][FRONT].zx_zy[z][x] == 1 && silt[other_silt_id][RIGHT].zx_zy[z][y] == 1))) {
-				start_xyz_pos[cnt] = Pos{x,y,z};
-				start_xyz_pos_index[cnt] = cnt;
-				cnt++;
-			}
-		}
-		start_xyz_pos.erase(start_xyz_pos.begin()+cnt, start_xyz_pos.end());
-		start_xyz_pos_index.erase(start_xyz_pos_index.begin()+cnt, start_xyz_pos_index.end());
-		random_number.array_shuffle(start_xyz_pos_index);//*/
-		
-		for (int x=0; x<D; x++) for (int y=0; y<D; y++) for (int z=0; z<D; z++) {
-		//for (int index = 0; index < start_xyz_pos.size(); index++) {
-		//	int x = start_xyz_pos[index].x, y = start_xyz_pos[index].y, z = start_xyz_pos[index].z;
 			vector<Pos> matched_block;
 			for (int i = 0; i < rotate_added_block.size(); i++) {
 				Pos cur_pos = Pos{rotate_added_block[i].x + x, rotate_added_block[i].y + y, rotate_added_block[i].z + z};
